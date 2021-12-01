@@ -1,0 +1,11 @@
+[package]
+name = "adventofcode_2021"
+version = "0.1.0"
+authors = ["elsid <elsid.mail@gmail.com>"]
+edition = "2018"
+
+[[bin]]
+name = "day_1_part_1"
+path = "src/day_1_part_1.rs"
+
+[dependencies]
