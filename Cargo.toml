@@ -56,4 +56,11 @@ path = "src/day_6_part_2.rs"
 name = "day_7_part_1"
 path = "src/day_7_part_1.rs"
 
+[[bin]]
+name = "day_7_part_2"
+path = "src/day_7_part_2.rs"
+
 [dependencies]
+
+[features]
+day_7_part_2_log = []
