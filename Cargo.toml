@@ -60,6 +60,14 @@ path = "src/day_7_part_1.rs"
 name = "day_7_part_2"
 path = "src/day_7_part_2.rs"
 
+[[bin]]
+name = "day_8_part_1"
+path = "src/day_8_part_1.rs"
+
+[[bin]]
+name = "day_8_part_2"
+path = "src/day_8_part_2.rs"
+
 [dependencies]
 
 [features]
