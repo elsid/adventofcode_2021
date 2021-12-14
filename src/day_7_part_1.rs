@@ -14,7 +14,7 @@ fn align_crabs_position(buffer: impl BufRead) -> i64 {
         .split(',')
         .map(|v| i64::from_str(v).unwrap())
         .collect();
-    positions.sort();
+    positions.sort_unstable();
     let target = positions[positions.len() / 2];
     if positions.len() % 2 == 1 {
         return calculate_fuel_consumption(target, &positions);

@@ -13,7 +13,7 @@ fn calculate_total_completion_score(buffer: impl BufRead) -> u64 {
         .map(|v| get_completion_score(&v.unwrap()))
         .filter(|v| *v != 0)
         .collect();
-    scores.sort();
+    scores.sort_unstable();
     scores[scores.len() / 2]
 }
 

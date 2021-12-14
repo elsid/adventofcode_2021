@@ -21,7 +21,7 @@ fn count_cave_paths(buffer: impl BufRead) -> usize {
     }
     let mut paths = vec![Path {
         last: "start",
-        visited: ["start"].iter().map(|v| *v).collect(),
+        visited: ["start"].iter().copied().collect(),
     }];
     let mut incoming = VecDeque::new();
     incoming.push_back(0usize);

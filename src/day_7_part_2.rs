@@ -22,7 +22,7 @@ fn align_crabs_position(buffer: impl BufRead) -> i64 {
 }
 
 fn find_optimal_fuel_consumption(min: i64, max: i64, positions: &[i64]) -> i64 {
-    find_min(min, max, |v| calculate_fuel_consumption(v, &positions))
+    find_min(min, max, |v| calculate_fuel_consumption(v, positions))
 }
 
 #[cfg(not(feature = "day_7_part_2_log"))]

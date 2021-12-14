@@ -23,7 +23,7 @@ fn decode_line(line: &str) -> u64 {
     for word in signal.split(' ') {
         match word.len() {
             5 => {
-                let digit = if contains_bytes(word.as_bytes(), &digits[1].unwrap()) {
+                let digit = if contains_bytes(word.as_bytes(), digits[1].unwrap()) {
                     3
                 } else if contains_at_least_n_bytes(word.as_bytes(), digits[4].unwrap(), 3) {
                     5
@@ -65,8 +65,8 @@ fn get_digit_by_signal_len(value: usize) -> Option<u8> {
 }
 
 fn make_word_key(word: &str) -> Vec<u8> {
-    let mut key: Vec<u8> = word.as_bytes().iter().cloned().collect();
-    key.sort();
+    let mut key: Vec<u8> = word.as_bytes().to_vec();
+    key.sort_unstable();
     key
 }
 

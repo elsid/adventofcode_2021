@@ -39,7 +39,6 @@ fn fill_segment(segment: &Segment, area: &mut BTreeMap<Point, usize>) {
             .and_modify(|v| *v += 1)
             .or_insert(1);
         }
-        return;
     }
 }
 

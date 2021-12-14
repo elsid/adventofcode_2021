@@ -28,7 +28,7 @@ fn product_basin_top_3_sizes(buffer: impl BufRead) -> u64 {
             basin_sizes[*basin as usize - 1] += 1;
         }
     }
-    basin_sizes.sort();
+    basin_sizes.sort_unstable();
     basin_sizes.iter().rev().take(3).product()
 }
 
@@ -39,8 +39,7 @@ fn fill_basin(
     heightmap: &Heightmap<u8>,
     basins: &mut Heightmap<u64>,
 ) {
-    let mut positions = Vec::new();
-    positions.push((start_x, start_y));
+    let mut positions = vec![(start_x, start_y)];
     let try_push = |x, y, height, basins: &Heightmap<u64>, positions: &mut Vec<(usize, usize)>| {
         let neighbor_height = *heightmap.value(x, y);
         if neighbor_height != 9 && neighbor_height > height && *basins.value(x, y) == 0 {
