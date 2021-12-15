@@ -116,7 +116,16 @@ path = "src/day_14_part_1.rs"
 name = "day_14_part_2"
 path = "src/day_14_part_2.rs"
 
+[[bin]]
+name = "day_15_part_1"
+path = "src/day_15_part_1.rs"
+
+[[bin]]
+name = "day_15_part_2"
+path = "src/day_15_part_2.rs"
+
 [dependencies]
 
 [features]
 day_7_part_2_log = []
+day_15_part_2_fair_dijkstra = []
