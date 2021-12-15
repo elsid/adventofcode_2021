@@ -34,7 +34,6 @@ fn calculate_lowest_total_risk(buffer: impl BufRead) -> i64 {
     find_min_risk(&grid)
 }
 
-#[cfg(not(feature = "day_15_part_2_fair_dijkstra"))]
 fn find_min_risk(grid: &Grid) -> i64 {
     type Nodes = BinaryHeap<(i64, usize)>;
     let mut visited: Vec<bool> = std::iter::repeat(false).take(grid.values.len()).collect();
@@ -68,45 +67,6 @@ fn find_min_risk(grid: &Grid) -> i64 {
         }
     }
     0
-}
-
-#[cfg(feature = "day_15_part_2_fair_dijkstra")]
-fn find_min_risk(grid: &Grid) -> i64 {
-    type Nodes = BinaryHeap<(i64, usize)>;
-    let mut risks: Vec<i64> = std::iter::repeat(i64::MAX)
-        .take(grid.values.len())
-        .collect();
-    risks[0] = 0;
-    let mut try_push = |node_index, x, y, nodes: &mut Nodes| {
-        let index = grid.index(x, y);
-        let risk = risks[node_index] + grid.values[index] as i64;
-        if risks[index] <= risk {
-            return;
-        }
-        nodes.push((-risk, index));
-        risks[index] = risk;
-    };
-    let mut nodes = Nodes::new();
-    nodes.push((0, 0));
-    while let Some((_, node_index)) = nodes.pop() {
-        if node_index == grid.values.len() - 1 {
-            break;
-        }
-        let (node_x, node_y) = grid.position(node_index);
-        if node_x > 0 {
-            try_push(node_index, node_x - 1, node_y, &mut nodes);
-        }
-        if node_y > 0 {
-            try_push(node_index, node_x, node_y - 1, &mut nodes);
-        }
-        if node_x + 1 < grid.width {
-            try_push(node_index, node_x + 1, node_y, &mut nodes);
-        }
-        if node_y + 1 < grid.height {
-            try_push(node_index, node_x, node_y + 1, &mut nodes);
-        }
-    }
-    risks[risks.len() - 1]
 }
 
 struct Grid {
