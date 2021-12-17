@@ -16,12 +16,42 @@ fn find_max_y_for_probe(buffer: impl BufRead) -> i64 {
         max: Vec2 { x: max_x, y: max_y },
     };
     let initial_position = Vec2 { x: 0, y: 0 };
-    let mut max_y = i64::MIN;
-    for x in target_area.min.x.min(0)..=target_area.max.x.max(0) {
-        for y in -target_area.max.x.abs()..=target_area.max.x.abs() {
-            if let Some(v) = simulate_probe(initial_position, Vec2 { x, y }, &target_area) {
-                max_y = max_y.max(v);
-            }
+    find_first_hit_velocity(initial_position, &target_area)
+        .map(|(first_velocity, max_y)| {
+            find_max_y(initial_position, first_velocity, max_y, &target_area)
+        })
+        .unwrap()
+}
+
+fn find_first_hit_velocity(initial_position: Vec2, target_area: &Rect) -> Option<(Vec2, i64)> {
+    let y_range = -target_area.max.x.abs()..=target_area.max.x.abs();
+    (0..=target_area.min.x.abs()).find_map(|x_shift| {
+        let x = x_shift * target_area.min.x.signum();
+        y_range
+            .clone()
+            .find_map(|y| {
+                simulate_probe(initial_position, Vec2 { x, y }, target_area).map(|v| (y, v))
+            })
+            .map(|(y, v)| (Vec2 { x, y }, v))
+    })
+}
+
+fn find_max_y(
+    initial_position: Vec2,
+    first_velocity: Vec2,
+    mut max_y: i64,
+    target_area: &Rect,
+) -> i64 {
+    for y in first_velocity.y..=target_area.max.x.abs() {
+        if let Some(v) = simulate_probe(
+            initial_position,
+            Vec2 {
+                x: first_velocity.x,
+                y,
+            },
+            target_area,
+        ) {
+            max_y = max_y.max(v);
         }
     }
     max_y
@@ -127,4 +157,12 @@ fn example_4_test() {
 "#
     .as_bytes();
     assert_eq!(find_max_y_for_probe(buffer), 55);
+}
+
+#[test]
+fn example_5_test() {
+    let buffer = r#"target area: x=3000..3010, y=-1010..-1000
+"#
+    .as_bytes();
+    assert_eq!(find_max_y_for_probe(buffer), 509545);
 }
