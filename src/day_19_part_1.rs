@@ -9,25 +9,7 @@ fn main() {
 fn count_beacons(buffer: impl BufRead) -> usize {
     let mut scanners = parse_scanners(buffer);
     let mut beacons: BTreeSet<Vec3> = scanners[0].iter().copied().collect();
-    let mut transforms = BTreeMap::new();
-    let mut try_add_transform = |src: usize, dst: usize, scanners: &mut Vec<Vec<Vec3>>| {
-        if let Some(transform) = find_relative_transformation(&scanners[src], &scanners[dst], 12) {
-            for k in 0..scanners[src].len() {
-                let pos = scanners[src][k];
-                scanners[dst].push(apply_transform(pos, &transform));
-            }
-            scanners[dst].sort_unstable();
-            scanners[dst].dedup();
-            transforms.insert((src, dst), transform);
-        }
-    };
-    for i in 0..scanners.len() - 1 {
-        for j in i + 1..scanners.len() {
-            try_add_transform(i, j, &mut scanners);
-            try_add_transform(j, i, &mut scanners);
-        }
-    }
-    let predecessors = build_shortest_transformation_paths(0, scanners.len(), &transforms);
+    let (transforms, predecessors) = find_transforms(&mut scanners);
     for (i, scanner) in scanners[1..scanners.len()].iter().enumerate() {
         for mut pos in scanner.iter().cloned() {
             let mut current = i + 1;
@@ -45,13 +27,57 @@ fn count_beacons(buffer: impl BufRead) -> usize {
     beacons.len()
 }
 
+fn find_transforms(
+    scanners: &mut Vec<Vec<Vec3>>,
+) -> (BTreeMap<(usize, usize), Transform>, Vec<usize>) {
+    let mut transforms = BTreeMap::new();
+    let try_add_transform =
+        |src: usize,
+         dst: usize,
+         scanners: &mut Vec<Vec<Vec3>>,
+         transforms: &mut BTreeMap<(usize, usize), Transform>| {
+            if let Some(transform) =
+                find_relative_transformation(&scanners[src], &scanners[dst], 12)
+            {
+                for k in 0..scanners[src].len() {
+                    let pos = scanners[src][k];
+                    scanners[dst].push(apply_transform(pos, &transform));
+                }
+                scanners[dst].sort_unstable();
+                scanners[dst].dedup();
+                transforms.insert((src, dst), transform);
+                true
+            } else {
+                false
+            }
+        };
+    let mut predecessors = build_shortest_transformation_paths(0, scanners.len(), &transforms);
+    if predecessors.iter().skip(1).all(|v| *v != usize::MAX) {
+        return (transforms, predecessors);
+    }
+    for i in 0..scanners.len() - 1 {
+        for j in i + 1..scanners.len() {
+            for (src, dst) in [(i, j), (j, i)] {
+                if try_add_transform(src, dst, scanners, &mut transforms) {
+                    predecessors =
+                        build_shortest_transformation_paths(0, scanners.len(), &transforms);
+                    if predecessors.iter().skip(1).all(|v| *v != usize::MAX) {
+                        return (transforms, predecessors);
+                    }
+                }
+            }
+        }
+    }
+    (transforms, predecessors)
+}
+
 fn build_shortest_transformation_paths(
     src: usize,
     scanners: usize,
     transforms: &BTreeMap<(usize, usize), Transform>,
 ) -> Vec<usize> {
     let mut predecessors: Vec<usize> = std::iter::repeat(usize::MAX).take(scanners).collect();
-    let mut distances: Vec<usize> = std::iter::repeat(usize::MAX - 1).take(scanners).collect();
+    let mut distances: Vec<u32> = std::iter::repeat(u32::MAX - 1).take(scanners).collect();
     distances[src] = 0;
     for _ in 0..scanners - 1 {
         for ((v, u), _) in transforms.iter() {

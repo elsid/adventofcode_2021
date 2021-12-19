@@ -11,25 +11,7 @@ fn main() {
 
 fn find_max_distance_between_scanners(buffer: impl BufRead) -> i64 {
     let mut scanners = parse_scanners(buffer);
-    let mut transforms = BTreeMap::new();
-    let mut try_add_transform = |src: usize, dst: usize, scanners: &mut Vec<Vec<Vec3>>| {
-        if let Some(transform) = find_relative_transformation(&scanners[src], &scanners[dst], 12) {
-            for k in 0..scanners[src].len() {
-                let pos = scanners[src][k];
-                scanners[dst].push(apply_transform(pos, &transform));
-            }
-            scanners[dst].sort_unstable();
-            scanners[dst].dedup();
-            transforms.insert((src, dst), transform);
-        }
-    };
-    for i in 0..scanners.len() - 1 {
-        for j in i + 1..scanners.len() {
-            try_add_transform(i, j, &mut scanners);
-            try_add_transform(j, i, &mut scanners);
-        }
-    }
-    let predecessors = build_shortest_transformation_paths(0, scanners.len(), &transforms);
+    let (transforms, predecessors) = find_transforms(&mut scanners);
     let mut absolute_scanners = vec![[0; 3]];
     for i in 1..scanners.len() {
         let mut pos = [0; 3];
@@ -51,6 +33,50 @@ fn find_max_distance_between_scanners(buffer: impl BufRead) -> i64 {
         }
     }
     max_distance
+}
+
+fn find_transforms(
+    scanners: &mut Vec<Vec<Vec3>>,
+) -> (BTreeMap<(usize, usize), Transform>, Vec<usize>) {
+    let mut transforms = BTreeMap::new();
+    let try_add_transform =
+        |src: usize,
+         dst: usize,
+         scanners: &mut Vec<Vec<Vec3>>,
+         transforms: &mut BTreeMap<(usize, usize), Transform>| {
+            if let Some(transform) =
+                find_relative_transformation(&scanners[src], &scanners[dst], 12)
+            {
+                for k in 0..scanners[src].len() {
+                    let pos = scanners[src][k];
+                    scanners[dst].push(apply_transform(pos, &transform));
+                }
+                scanners[dst].sort_unstable();
+                scanners[dst].dedup();
+                transforms.insert((src, dst), transform);
+                true
+            } else {
+                false
+            }
+        };
+    let mut predecessors = build_shortest_transformation_paths(0, scanners.len(), &transforms);
+    if predecessors.iter().skip(1).all(|v| *v != usize::MAX) {
+        return (transforms, predecessors);
+    }
+    for i in 0..scanners.len() - 1 {
+        for j in i + 1..scanners.len() {
+            for (src, dst) in [(i, j), (j, i)] {
+                if try_add_transform(src, dst, scanners, &mut transforms) {
+                    predecessors =
+                        build_shortest_transformation_paths(0, scanners.len(), &transforms);
+                    if predecessors.iter().skip(1).all(|v| *v != usize::MAX) {
+                        return (transforms, predecessors);
+                    }
+                }
+            }
+        }
+    }
+    (transforms, predecessors)
 }
 
 fn get_manhattan_distance(a: Vec3, b: Vec3) -> i64 {
