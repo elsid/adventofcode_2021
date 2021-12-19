@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::io::BufRead;
 use std::str::FromStr;
 
@@ -94,11 +94,11 @@ fn apply_transform(vec: Vec3, transform: &Transform) -> Vec3 {
     add_vec3(rotate_vec3(vec, transform.rot), transform.shift)
 }
 
-type Vec3 = [i64; 3];
+type Vec3 = [i16; 3];
 type Rot3 = [u8; 3];
 type Mat3 = [Vec3; 3];
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug)]
+#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
 struct Transform {
     shift: Vec3,
     rot: Rot3,
@@ -114,7 +114,7 @@ fn parse_scanners(buffer: impl BufRead) -> Vec<Vec<Vec3>> {
             let mut position = [0; 3];
             for (i, coordinate) in line_str
                 .splitn(3, ',')
-                .map(|v| i64::from_str(v).unwrap())
+                .map(|v| i16::from_str(v).unwrap())
                 .enumerate()
             {
                 position[i] = coordinate;
@@ -126,12 +126,12 @@ fn parse_scanners(buffer: impl BufRead) -> Vec<Vec<Vec3>> {
 }
 
 fn find_relative_transformation(src: &[Vec3], dst: &[Vec3], min_count: usize) -> Option<Transform> {
-    let mut candidates: BTreeMap<Transform, usize> = BTreeMap::new();
-    for rot in generate_rotations() {
-        for src_pos in src {
-            let rotated_src_pos = rotate_vec3(*src_pos, rot);
-            for dst_pos in dst {
-                let shift = sub_vec3(*dst_pos, rotated_src_pos);
+    let mut candidates: HashMap<Transform, usize> = HashMap::new();
+    let rotations = generate_rotations();
+    for src_pos in src {
+        for dst_pos in dst {
+            for rot in rotations.iter().cloned() {
+                let shift = sub_vec3(*dst_pos, rotate_vec3(*src_pos, rot));
                 let count = candidates.entry(Transform { shift, rot }).or_default();
                 *count += 1;
                 if *count >= min_count {
@@ -210,11 +210,11 @@ fn mat3_product(a: &Mat3, b: &Mat3) -> Mat3 {
     result
 }
 
-fn dot_product(a: Vec3, b: Vec3) -> i64 {
+fn dot_product(a: Vec3, b: Vec3) -> i16 {
     a.iter().zip(b.iter()).map(|(a, b)| *a * *b).sum()
 }
 
-fn cos(v: u8) -> i64 {
+fn cos(v: u8) -> i16 {
     match v {
         0 => 1,
         2 => -1,
@@ -222,7 +222,7 @@ fn cos(v: u8) -> i64 {
     }
 }
 
-fn sin(v: u8) -> i64 {
+fn sin(v: u8) -> i16 {
     match v {
         1 => 1,
         3 => -1,
