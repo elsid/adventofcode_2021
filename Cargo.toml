@@ -148,5 +148,13 @@ path = "src/day_18_part_1.rs"
 name = "day_18_part_2"
 path = "src/day_18_part_2.rs"
 
+[[bin]]
+name = "day_19_part_1"
+path = "src/day_19_part_1.rs"
+
+[[bin]]
+name = "day_19_part_2"
+path = "src/day_19_part_2.rs"
+
 [features]
 day_7_part_2_log = []
