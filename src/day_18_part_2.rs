@@ -126,7 +126,7 @@ fn reduce_tree(tree: &mut Tree, nodes: &mut Vec<Node>) {
             }
             continue;
         }
-        if let Some(node) = find_splittable_node(tree.root, nodes) {
+        if let Some(node) = find_splittable_node(tree, nodes) {
             split_node(node, nodes);
             if node == tree.first_regular {
                 match &nodes[node].value {
@@ -262,22 +262,17 @@ fn find_explodable_node_recursive(node: usize, depth: usize, nodes: &[Node]) -> 
     None
 }
 
-fn find_splittable_node(node: usize, nodes: &[Node]) -> Option<usize> {
-    match nodes[node].value {
-        Value::Pair { left, right } => {
-            match find_splittable_node(left, nodes) {
-                None => (),
-                v => return v,
+fn find_splittable_node(tree: &Tree, nodes: &[Node]) -> Option<usize> {
+    let mut node = Some(tree.first_regular);
+    while let Some(index) = node {
+        match nodes[index].value {
+            Value::Regular { number, next, .. } => {
+                if number >= 10 {
+                    return Some(index);
+                }
+                node = next;
             }
-            match find_splittable_node(right, nodes) {
-                None => (),
-                v => return v,
-            }
-        }
-        Value::Regular { number, .. } => {
-            if number >= 10 {
-                return Some(node);
-            }
+            _ => panic!("{} {:?}", index, nodes[index]),
         }
     }
     None
@@ -573,7 +568,7 @@ fn find_explodable_node_test() {
 fn find_splittable_node_test() {
     let mut nodes = Vec::new();
     let tree = parse_tree("[:,0]", &mut nodes);
-    assert_eq!(find_splittable_node(tree.root, &nodes), Some(1));
+    assert_eq!(find_splittable_node(&tree, &nodes), Some(1));
 }
 
 #[test]
@@ -616,7 +611,7 @@ fn split_node_test() {
     for (input, expected) in cases {
         let mut nodes = Vec::new();
         let tree = parse_tree(input, &mut nodes);
-        let node = find_splittable_node(tree.root, &nodes);
+        let node = find_splittable_node(&tree, &nodes);
         assert!(matches!(node, Some(..)), "input: {}", input);
         split_node(node.unwrap(), &mut nodes);
         assert_eq!(
