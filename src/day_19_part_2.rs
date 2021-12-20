@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, BTreeSet};
 use std::io::BufRead;
 use std::str::FromStr;
 
@@ -103,17 +103,16 @@ fn build_shortest_transformation_paths(
 }
 
 fn apply_transform(vec: Vec3, transform: &Transform) -> Vec3 {
-    add_vec3(rotate_vec3(vec, transform.rot), transform.shift)
+    add_vec3(mat3_vec3_product(&transform.rot, vec), transform.shift)
 }
 
 type Vec3 = [i16; 3];
-type Rot3 = [u8; 3];
 type Mat3 = [Vec3; 3];
 
 #[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
 struct Transform {
     shift: Vec3,
-    rot: Rot3,
+    rot: Mat3,
 }
 
 fn parse_scanners(buffer: impl BufRead) -> Vec<Vec<Vec3>> {
@@ -143,7 +142,7 @@ fn find_relative_transformation(src: &[Vec3], dst: &[Vec3], min_count: usize) ->
     for src_pos in src {
         for dst_pos in dst {
             for rot in rotations.iter().cloned() {
-                let shift = sub_vec3(*dst_pos, rotate_vec3(*src_pos, rot));
+                let shift = sub_vec3(*dst_pos, mat3_vec3_product(&rot, *src_pos));
                 let count = candidates.entry(Transform { shift, rot }).or_default();
                 *count += 1;
                 if *count >= min_count {
@@ -155,20 +154,40 @@ fn find_relative_transformation(src: &[Vec3], dst: &[Vec3], min_count: usize) ->
     None
 }
 
-fn generate_rotations() -> [Rot3; 24] {
-    let mut result: [Rot3; 24] = [[0; 3]; 24];
-    let mut i = 0;
+fn generate_rotations() -> [Mat3; 24] {
+    let mut unique = BTreeSet::new();
     for rot_x in 0u8..4 {
-        for rot_y in 0u8..3 {
-            for rot_z in 0u8..2 {
-                result[i] = [rot_x, rot_y, rot_z];
-                i += 1;
+        for rot_y in 0u8..4 {
+            for rot_z in 0u8..4 {
+                unique.insert(make_rotation_matrix(rot_x, rot_y, rot_z));
             }
         }
+    }
+    let mut result: [Mat3; 24] = [[[0; 3]; 3]; 24];
+    for (i, v) in unique.iter().enumerate() {
+        result[i] = *v;
     }
     result
 }
 
+fn make_rotation_matrix(rot_x: u8, rot_y: u8, rot_z: u8) -> Mat3 {
+    let x: Mat3 = [
+        [1, 0, 0],
+        [0, cos(rot_x), -sin(rot_x)],
+        [0, sin(rot_x), cos(rot_x)],
+    ];
+    let y: Mat3 = [
+        [cos(rot_y), 0, sin(rot_y)],
+        [0, 1, 0],
+        [-sin(rot_y), 0, cos(rot_y)],
+    ];
+    let z: Mat3 = [
+        [cos(rot_z), -sin(rot_z), 0],
+        [sin(rot_z), cos(rot_z), 0],
+        [0, 0, 1],
+    ];
+    mat3_product(&mat3_product(&z, &y), &x)
+}
 fn add_vec3(mut a: Vec3, b: Vec3) -> Vec3 {
     for i in 0..3 {
         a[i] += b[i];
@@ -181,25 +200,6 @@ fn sub_vec3(mut a: Vec3, b: Vec3) -> Vec3 {
         a[i] -= b[i];
     }
     a
-}
-
-fn rotate_vec3(vec: Vec3, rot: Rot3) -> Vec3 {
-    let x: Mat3 = [
-        [1, 0, 0],
-        [0, cos(rot[0]), -sin(rot[0])],
-        [0, sin(rot[0]), cos(rot[0])],
-    ];
-    let y: Mat3 = [
-        [cos(rot[1]), 0, sin(rot[1])],
-        [0, 1, 0],
-        [-sin(rot[1]), 0, cos(rot[1])],
-    ];
-    let z: Mat3 = [
-        [cos(rot[2]), -sin(rot[2]), 0],
-        [sin(rot[2]), cos(rot[2]), 0],
-        [0, 0, 1],
-    ];
-    mat3_vec3_product(&mat3_product(&mat3_product(&z, &y), &x), vec)
 }
 
 fn mat3_vec3_product(mat: &Mat3, vec: Vec3) -> Vec3 {
@@ -240,49 +240,6 @@ fn sin(v: u8) -> i16 {
         3 => -1,
         _ => 0,
     }
-}
-
-#[test]
-fn find_relative_transformation_only_shift_test() {
-    let src: &[Vec3] = &[[0, 2, 0], [4, 1, 0], [3, 3, 0]];
-    let shift = [-5, -2, 0];
-    let dst: Vec<Vec3> = src.iter().map(|v| add_vec3(*v, shift)).collect();
-    assert_eq!(
-        find_relative_transformation(src, &dst, 3),
-        Some(Transform {
-            shift,
-            rot: [0, 0, 0],
-        })
-    );
-}
-
-#[test]
-fn find_relative_transformation_only_rotation_test() {
-    let src: &[Vec3] = &[[0, 2, 0], [4, 1, 0], [3, 3, 0]];
-    let rot: Rot3 = [1, 0, 0];
-    let dst: Vec<Vec3> = src.iter().map(|v| rotate_vec3(*v, rot)).collect();
-    assert_eq!(
-        find_relative_transformation(src, &dst, 3),
-        Some(Transform {
-            shift: [0, 0, 0],
-            rot,
-        })
-    );
-}
-
-#[test]
-fn find_relative_transformation_with_shift_and_rotation_test() {
-    let src: &[Vec3] = &[[0, 2, 0], [4, 1, 0], [3, 3, 0]];
-    let shift = [-5, -2, 0];
-    let rot: Rot3 = [1, 0, 0];
-    let dst: Vec<Vec3> = src
-        .iter()
-        .map(|v| add_vec3(rotate_vec3(*v, rot), shift))
-        .collect();
-    assert_eq!(
-        find_relative_transformation(src, &dst, 3),
-        Some(Transform { shift, rot })
-    );
 }
 
 #[test]
