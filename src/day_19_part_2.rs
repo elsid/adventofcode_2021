@@ -11,16 +11,18 @@ fn main() {
 
 fn find_max_distance_between_scanners(buffer: impl BufRead) -> i16 {
     let mut scanners = parse_scanners(buffer);
+    let mut absolute_scanners = Vec::with_capacity(scanners.len());
+    absolute_scanners.push([0; 3]);
     let (head, tail) = scanners.split_at_mut(1);
     let first = &mut head[0];
-    let mut absolute_scanners = vec![[0; 3]];
+    let rotations = generate_rotations();
     loop {
         let mut aggregated = false;
         for scanner in tail.iter_mut() {
             if scanner.is_empty() {
                 continue;
             }
-            if let Some(transform) = find_relative_transformation(first, scanner, 12) {
+            if let Some(transform) = find_relative_transformation(scanner, first, &rotations, 12) {
                 for pos in scanner.iter() {
                     first.push(apply_transform(*pos, &transform));
                 }
@@ -49,16 +51,16 @@ fn get_manhattan_distance(a: Vec3, b: Vec3) -> i16 {
 }
 
 fn apply_transform(vec: Vec3, transform: &Transform) -> Vec3 {
-    add_vec3(mat3_vec3_product(&transform.rot, vec), transform.shift)
+    add_vec3(mat3_vec3_product(transform.rot, vec), transform.shift)
 }
 
 type Vec3 = [i16; 3];
 type Mat3 = [Vec3; 3];
 
-#[derive(Clone, Ord, PartialOrd, Eq, PartialEq, Debug, Hash)]
-struct Transform {
+#[derive(Clone, Debug)]
+struct Transform<'a> {
     shift: Vec3,
-    rot: Mat3,
+    rot: &'a Mat3,
 }
 
 fn parse_scanners(buffer: impl BufRead) -> Vec<Vec<Vec3>> {
@@ -82,31 +84,26 @@ fn parse_scanners(buffer: impl BufRead) -> Vec<Vec<Vec3>> {
     scanners
 }
 
-fn find_relative_transformation(src: &[Vec3], dst: &[Vec3], min_count: usize) -> Option<Transform> {
-    for rot in generate_rotations() {
-        let shifts = find_shifts(dst, src, &rot);
-        if let Some(shift) = find_overlap(&shifts, src.len(), min_count) {
+fn find_relative_transformation<'a>(
+    src: &[Vec3],
+    dst: &[Vec3],
+    rotations: &'a [Mat3; 24],
+    min_count: usize,
+) -> Option<Transform<'a>> {
+    for rot in rotations {
+        if let Some(shift) = find_overlap(src, dst, rot, min_count) {
             return Some(Transform { shift, rot });
         }
     }
     None
 }
 
-fn find_shifts(src: &[Vec3], dst: &[Vec3], rot: &Mat3) -> Vec<Vec3> {
-    let mut shifts = Vec::with_capacity(dst.len() * src.len());
-    for src_pos in src {
-        for dst_pos in dst {
-            shifts.push(sub_vec3(*dst_pos, mat3_vec3_product(rot, *src_pos)));
-        }
-    }
-    shifts
-}
-
-fn find_overlap(shifts: &[Vec3], width: usize, min_count: usize) -> Option<Vec3> {
+fn find_overlap(src: &[Vec3], dst: &[Vec3], rot: &Mat3, min_count: usize) -> Option<Vec3> {
     let mut candidates: HashMap<Vec3, usize> = HashMap::new();
-    for i in 0..shifts.len() / width {
-        for j in 0..width {
-            let shift = shifts[j + i * width];
+    for src_pos in src {
+        let rotated_src_pos = mat3_vec3_product(rot, *src_pos);
+        for dst_pos in dst {
+            let shift = sub_vec3(*dst_pos, rotated_src_pos);
             let count = candidates.entry(shift).or_default();
             *count += 1;
             if *count >= min_count {
