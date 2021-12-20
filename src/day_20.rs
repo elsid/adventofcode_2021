@@ -1,8 +1,72 @@
+use image::{ImageBuffer, Rgb};
 use std::collections::BTreeMap;
 use std::io::BufRead;
 
 fn main() {
-    println!("{:?}", count_enhanced_light_pixels(std::io::stdin().lock()));
+    if std::env::args()
+        .skip(1)
+        .next()
+        .map(|v| v == "images")
+        .unwrap_or(false)
+    {
+        println!("generating images...");
+        generate_images(24 * 10, std::io::stdin().lock());
+    } else {
+        println!("{:?}", count_enhanced_light_pixels(std::io::stdin().lock()));
+    }
+}
+
+fn generate_images(number: usize, buffer: impl BufRead) {
+    let (enhancement, mut image) = parse_image(buffer);
+    let mut images = Vec::with_capacity(number);
+    let mut default_pixel = '0';
+    images.push((image.clone(), default_pixel));
+    for _ in 0..number {
+        image = enhance_image(&enhancement, &image, &mut default_pixel);
+        images.push((image.clone(), default_pixel));
+    }
+    let (min_x, min_y) = images.last().unwrap().0.keys().next().unwrap().clone();
+    let (max_x, max_y) = images
+        .last()
+        .unwrap()
+        .0
+        .keys()
+        .rev()
+        .next()
+        .unwrap()
+        .clone();
+    for (n, (image, default_pixel)) in images.iter().enumerate() {
+        save_image(n, min_x, min_y, max_x, max_y, image, *default_pixel);
+    }
+}
+
+fn save_image(
+    n: usize,
+    min_x: isize,
+    min_y: isize,
+    max_x: isize,
+    max_y: isize,
+    image: &BTreeMap<(isize, isize), u8>,
+    default_pixel: char,
+) {
+    let mut buffer = ImageBuffer::new((max_x - min_x) as u32 + 1, (max_y - min_y) as u32 + 1);
+    for y in min_y..=max_y {
+        for x in min_x..=max_x {
+            buffer.put_pixel(
+                (x - min_x) as u32,
+                (y - min_y) as u32,
+                match image.get(&(x, y)) {
+                    Some(b'#') => Rgb([192, 192, 192]),
+                    Some(b'.') => Rgb([128u8, 128, 128]),
+                    _ => match default_pixel {
+                        '1' => Rgb([192u8, 192, 192]),
+                        _ => Rgb([128u8, 128, 128]),
+                    },
+                },
+            );
+        }
+    }
+    buffer.save(format!("images/day_20_{:03}.png", n)).unwrap();
 }
 
 const FIRST_LIMIT: usize = 2;
