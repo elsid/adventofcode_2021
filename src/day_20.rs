@@ -4,8 +4,7 @@ use std::io::BufRead;
 
 fn main() {
     if std::env::args()
-        .skip(1)
-        .next()
+        .nth(1)
         .map(|v| v == "images")
         .unwrap_or(false)
     {
@@ -25,16 +24,8 @@ fn generate_images(number: usize, buffer: impl BufRead) {
         image = enhance_image(&enhancement, &image, &mut default_pixel);
         images.push((image.clone(), default_pixel));
     }
-    let (min_x, min_y) = images.last().unwrap().0.keys().next().unwrap().clone();
-    let (max_x, max_y) = images
-        .last()
-        .unwrap()
-        .0
-        .keys()
-        .rev()
-        .next()
-        .unwrap()
-        .clone();
+    let (min_x, min_y) = *images.last().unwrap().0.keys().next().unwrap();
+    let (max_x, max_y) = *images.last().unwrap().0.keys().rev().next().unwrap();
     for (n, (image, default_pixel)) in images.iter().enumerate() {
         save_image(n, min_x, min_y, max_x, max_y, image, *default_pixel);
     }
@@ -97,8 +88,8 @@ fn enhance_image(
             enhance_pixel(*x, *y, *default_pixel, enhancement, image),
         );
     }
-    let (min_x, min_y) = image.keys().next().unwrap().clone();
-    let (max_x, max_y) = image.keys().rev().next().unwrap().clone();
+    let (min_x, min_y) = *image.keys().next().unwrap();
+    let (max_x, max_y) = *image.keys().rev().next().unwrap();
     let mut shift = 1;
     loop {
         let mut light_count = 0;
