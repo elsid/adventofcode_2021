@@ -56,7 +56,7 @@ fn play_with_quantum_dice(positions: &[u8]) -> u64 {
     for first_roll in 1u8..=3 {
         for second_roll in 1u8..=3 {
             for third_roll in 1u8..=3 {
-                let sub_wins = play_with_quantum_dice_recursive(
+                play_with_quantum_dice_recursive(
                     &mut Context {
                         min_scores: &min_scores,
                         snapshots: &mut snapshots,
@@ -64,8 +64,8 @@ fn play_with_quantum_dice(positions: &[u8]) -> u64 {
                     &players,
                     first_roll + second_roll + third_roll,
                     0,
+                    &mut wins,
                 );
-                add_wins(&sub_wins, &mut wins);
             }
         }
     }
@@ -94,23 +94,22 @@ fn play_with_quantum_dice_recursive(
     players: &[QuantumPlayer; 2],
     roll: u8,
     step: u8,
-) -> [u64; 2] {
+    wins: &mut [u64; 2],
+) {
     let player_index = (step % 2) as usize;
     let position = (players[player_index].position + roll - 1) % 10 + 1;
     let score = players[player_index].score + position;
     if score >= QUANTUM_DICE_WIN_SCORE {
-        let mut wins = [0; 2];
         wins[player_index] += 1;
-        return wins;
+        return;
     }
     let next_player_index = (player_index + 1) % 2;
     if players[next_player_index].score
         + ctx.min_scores[get_scores_index(0, players[next_player_index].position)]
         >= QUANTUM_DICE_WIN_SCORE
     {
-        let mut wins = [0; 2];
         wins[next_player_index] += 27;
-        return wins;
+        return;
     }
     let mut new_players = players.clone();
     new_players[player_index].position = position;
@@ -120,32 +119,33 @@ fn play_with_quantum_dice_recursive(
         players: new_players.clone(),
     };
     if let Some(v) = ctx.snapshots.get(&snapshot) {
-        return *v;
+        add_wins(v, wins);
+        return;
     }
-    let mut wins = [0; 2];
+    let mut new_wins = [0; 2];
     for first_roll in 1..=3 {
         let next_player_index = (player_index + 1) % 2;
         if players[next_player_index].score
             + ctx.min_scores[get_scores_index(first_roll, players[next_player_index].position)]
             >= QUANTUM_DICE_WIN_SCORE
         {
-            wins[next_player_index] += 9;
+            new_wins[next_player_index] += 9;
             continue;
         }
         for second_roll in 1..=3 {
             for third_roll in 1..=3 {
-                let sub_wins = play_with_quantum_dice_recursive(
+                play_with_quantum_dice_recursive(
                     ctx,
                     &new_players,
                     first_roll + second_roll + third_roll,
                     step + 1,
+                    &mut new_wins,
                 );
-                add_wins(&sub_wins, &mut wins);
             }
         }
     }
-    ctx.snapshots.insert(snapshot, wins);
-    wins
+    ctx.snapshots.insert(snapshot, new_wins);
+    add_wins(&new_wins, wins);
 }
 
 fn add_wins(add: &[u64; 2], wins: &mut [u64; 2]) {
