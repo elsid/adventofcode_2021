@@ -1,3 +1,4 @@
+use itertools::partition;
 use std::io::BufRead;
 use std::str::FromStr;
 
@@ -44,15 +45,18 @@ fn full_reactor_reboot(cubes: &[Cube]) -> usize {
 }
 
 fn add_non_intersecting(cube: &Cube, non_intersecting_cubes: &mut Vec<Cube>) {
+    let start = partition(non_intersecting_cubes.iter_mut(), |v| {
+        !has_intersection(&cube.aabb, &v.aabb)
+    });
     let mut aabbs = vec![cube.aabb.clone()];
     while let Some(aabb) = aabbs.pop() {
-        if let Some(i) = non_intersecting_cubes
+        if let Some(i) = non_intersecting_cubes[start..]
             .iter()
             .enumerate()
             .find(|(_, v)| has_intersection(&aabb, &v.aabb))
             .map(|(i, _)| i)
         {
-            let (lower, upper) = get_intersection(&aabb, &non_intersecting_cubes[i].aabb);
+            let (lower, upper) = get_intersection(&aabb, &non_intersecting_cubes[start + i].aabb);
             if aabb.lower[0] < lower[0] {
                 aabbs.push(Aabb {
                     lower: [aabb.lower[0], aabb.lower[1], aabb.lower[2]],
