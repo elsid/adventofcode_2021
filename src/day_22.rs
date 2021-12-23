@@ -45,6 +45,7 @@ fn full_reactor_reboot(cubes: &[Cube]) -> usize {
 }
 
 fn add_non_intersecting(cube: &Cube, non_intersecting_cubes: &mut Vec<Cube>) {
+    non_intersecting_cubes.sort_by_key(|v| get_area(&v.aabb.lower, &v.aabb.upper));
     let start = partition(non_intersecting_cubes.iter_mut(), |v| {
         !has_intersection(&cube.aabb, &v.aabb)
     });
