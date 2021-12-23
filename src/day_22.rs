@@ -118,14 +118,14 @@ fn get_intersection(a: &Aabb, b: &Aabb) -> (Vec3, Vec3) {
 }
 
 fn get_area(min: &Vec3, max: &Vec3) -> i64 {
-    let mut result = 1;
+    let mut result = 1i64;
     for i in 0..3 {
-        result *= max[i] - min[i] + 1;
+        result *= (max[i] - min[i]) as i64 + 1;
     }
     result
 }
 
-type Vec3 = [i64; 3];
+type Vec3 = [i32; 3];
 
 #[derive(Copy, Clone)]
 enum State {
@@ -152,8 +152,8 @@ fn parse_cube(line: &str) -> Cube {
     for v in tail.split(',') {
         let (coordinate, ranges) = v.split_once("=").unwrap();
         let (min_str, max_str) = ranges.split_once("..").unwrap();
-        let min = i64::from_str(min_str).unwrap();
-        let max = i64::from_str(max_str).unwrap();
+        let min = i32::from_str(min_str).unwrap();
+        let max = i32::from_str(max_str).unwrap();
         match coordinate {
             "x" => {
                 lower[0] = min;
