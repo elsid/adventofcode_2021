@@ -172,9 +172,14 @@ path = "src/day_22.rs"
 name = "day_23"
 path = "src/day_23.rs"
 
+[[bin]]
+name = "day_24"
+path = "src/day_24.rs"
+
 [dependencies]
 image = "0.23.14"
 itertools = "0.10.3"
+dot = "0.1.4"
 
 [features]
 day_7_part_2_log = []
