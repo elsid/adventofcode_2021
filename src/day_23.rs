@@ -36,7 +36,7 @@ fn relocate_amphipods(buffer: impl BufRead) -> (u32, u32) {
 fn find_min_energy(env: &Env, mut initial_state: State) -> u32 {
     for i in 0..initial_state.amphipods.len() {
         if is_amphipod_in_final_state(&initial_state.amphipods[i], env, &initial_state) {
-            initial_state.amphipods[i].state = AmphipodState::Done;
+            initial_state.amphipods[i].done = true;
         }
     }
     let mut explored = HashMap::new();
@@ -52,20 +52,6 @@ fn find_min_energy(env: &Env, mut initial_state: State) -> u32 {
             continue;
         }
         let g_score = explored[&make_state_key(&states[state_index], &env.map)];
-        if states[state_index].next_amphipod != u8::MAX {
-            try_move_amphipod(
-                states[state_index].next_amphipod as usize,
-                state_index,
-                g_score,
-                &mut Ctx {
-                    env,
-                    states: &mut states,
-                    new_states: &mut new_states,
-                    explored: &mut explored,
-                },
-            );
-            continue;
-        }
         for amphipod_index in 0..states[state_index].amphipods.len() {
             try_move_amphipod(
                 amphipod_index,
@@ -84,10 +70,7 @@ fn find_min_energy(env: &Env, mut initial_state: State) -> u32 {
 }
 
 fn is_final(state: &State) -> bool {
-    state
-        .amphipods
-        .iter()
-        .all(|v| v.state == AmphipodState::Done)
+    state.amphipods.iter().all(|v| v.done)
 }
 
 fn make_state_key(state: &State, map: &Map) -> StateKey {
@@ -135,23 +118,33 @@ struct Ctx<'a> {
 }
 
 fn try_move_amphipod(amphipod_index: usize, state_index: usize, g_score: u32, ctx: &mut Ctx) {
-    if ctx.states[state_index].amphipods[amphipod_index].state == AmphipodState::Done {
+    if ctx.states[state_index].amphipods[amphipod_index].done {
         return;
     }
     let kind = ctx.states[state_index].amphipods[amphipod_index].kind;
     let src = ctx.states[state_index].amphipods[amphipod_index].position;
     let room_x = ctx.env.rooms[kind as usize].x;
-    let tile = ctx.env.map.tile(ctx.states[state_index].amphipods[amphipod_index].position);
-    if tile != Tile::Room(kind as u8) {
+    let tile = ctx
+        .env
+        .map
+        .tile(ctx.states[state_index].amphipods[amphipod_index].position);
+    if tile == Tile::Hallway {
         for room_y in (2..ctx.env.rooms[kind as usize].depth + 2).rev() {
             let dst = [room_x, room_y];
+            if ctx.states[state_index]
+                .amphipods
+                .iter()
+                .any(|v| v.position == dst && v.kind != kind)
+            {
+                break;
+            }
             if ctx.states[state_index]
                 .amphipods
                 .iter()
                 .all(|v| v.position != dst)
             {
                 if let Some(length) =
-                find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
+                    find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
                 {
                     try_apply_transition(
                         amphipod_index,
@@ -165,8 +158,7 @@ fn try_move_amphipod(amphipod_index: usize, state_index: usize, g_score: u32, ct
                 }
             }
         }
-    }
-    if tile != Tile::Hallway {
+    } else {
         for hallway_x in 0..ctx.env.map.width as i8 {
             let dst = [hallway_x, 1];
             if ctx.env.map.tile(dst) != Tile::Hallway {
@@ -178,7 +170,7 @@ fn try_move_amphipod(amphipod_index: usize, state_index: usize, g_score: u32, ct
                 .all(|v| v.position != dst)
             {
                 if let Some(length) =
-                find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
+                    find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
                 {
                     try_apply_transition(
                         amphipod_index,
@@ -229,7 +221,7 @@ fn get_h_score(state: &State, env: &Env) -> u32 {
             let left_space = state
                 .amphipods
                 .iter()
-                .filter(|v| v.state == AmphipodState::Done && v.position[0] == room.x)
+                .filter(|v| v.done && v.position[0] == room.x)
                 .map(|v| v.position[1] - 2)
                 .min()
                 .unwrap_or(room.depth) as u32;
@@ -239,10 +231,10 @@ fn get_h_score(state: &State, env: &Env) -> u32 {
     let move_to_room: u32 = state
         .amphipods
         .iter()
-        .filter(|v| v.state != AmphipodState::Done)
+        .filter(|v| !v.done)
         .map(|v| {
             let room = &env.rooms[v.kind as usize];
-            let length = if v.state == AmphipodState::Stopped {
+            let length = if env.map.tile(v.position) == Tile::Hallway {
                 (v.position[0] - room.x).abs()
             } else if room.x == v.position[0] {
                 v.position[1] + 1
@@ -326,7 +318,7 @@ fn parse_world(buffer: impl BufRead) -> World {
                             b'D' => AmphipodType::Desert,
                             _ => panic!(),
                         },
-                        state: AmphipodState::Initial,
+                        done: false,
                     });
                     if matches!(tiles.get(&[x, y - 1]), Some(&Tile::Hallway)) {
                         tiles.insert([x, y - 1], Tile::HallwayRestricted);
@@ -352,10 +344,7 @@ fn parse_world(buffer: impl BufRead) -> World {
         map.tiles[index] = *tile;
     }
     let env = Env { map, rooms };
-    let state = State {
-        amphipods,
-        next_amphipod: u8::MAX,
-    };
+    let state = State { amphipods };
     World { env, state }
 }
 
@@ -389,29 +378,9 @@ fn can_move_amphipod(
 }
 
 fn move_amphipod(amphipod_index: usize, next_position: Vec2, env: &Env, state: &mut State) {
-    let next_tile_index = env.map.index(next_position);
     state.amphipods[amphipod_index].position = next_position;
-    for (i, amphipod) in state.amphipods.iter_mut().enumerate() {
-        if i != amphipod_index
-            && env.map.tile(amphipod.position) == Tile::Hallway
-            && amphipod.state == AmphipodState::Initial
-        {
-            amphipod.state = AmphipodState::Stopped;
-        }
-    }
-    let next_tile = env.map.tiles[next_tile_index];
     if is_amphipod_in_final_state(&state.amphipods[amphipod_index], env, state) {
-        state.amphipods[amphipod_index].state = AmphipodState::Done;
-        state.next_amphipod = u8::MAX;
-        return;
-    }
-    if next_tile == Tile::HallwayRestricted
-        || (env.map.tiles[next_tile_index] == Tile::Hallway
-            && state.amphipods[amphipod_index].state == AmphipodState::Stopped)
-    {
-        state.next_amphipod = amphipod_index as u8;
-    } else {
-        state.next_amphipod = u8::MAX;
+        state.amphipods[amphipod_index].done = true;
     }
 }
 
@@ -440,7 +409,6 @@ struct Env {
 
 #[derive(Clone)]
 struct State {
-    next_amphipod: u8,
     amphipods: Vec<Amphipod>,
 }
 
@@ -464,21 +432,14 @@ enum AmphipodType {
     Desert,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
-enum AmphipodState {
-    Initial,
-    Stopped,
-    Done,
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, Hash)]
 struct Amphipod {
     kind: AmphipodType,
-    state: AmphipodState,
+    done: bool,
     position: Vec2,
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 enum Tile {
     Wall,
     Hallway,
@@ -507,76 +468,6 @@ fn example_scenario_test() {
     let buffer = r#"#############
 #...........#
 ###B#C#B#D###
-  #A#D#C#A#
-  #########
-"#
-    .as_bytes();
-    let World { env, mut state } = parse_world(buffer);
-    for i in 0..state.amphipods.len() {
-        if is_amphipod_in_final_state(&state.amphipods[i], &env, &state) {
-            state.amphipods[i].state = AmphipodState::Done;
-        }
-    }
-    let scenario = [
-        (2, [0, -1], AmphipodState::Initial),
-        (2, [-1, 0], AmphipodState::Initial),
-        (2, [-1, 0], AmphipodState::Initial),
-        (2, [-1, 0], AmphipodState::Initial),
-        (1, [0, -1], AmphipodState::Initial),
-        (1, [1, 0], AmphipodState::Initial),
-        (1, [1, 0], AmphipodState::Initial),
-        (1, [0, 1], AmphipodState::Done),
-        (5, [0, -1], AmphipodState::Initial),
-        (5, [0, -1], AmphipodState::Initial),
-        (5, [1, 0], AmphipodState::Initial),
-        (2, [1, 0], AmphipodState::Stopped),
-        (2, [0, 1], AmphipodState::Stopped),
-        (2, [0, 1], AmphipodState::Done),
-        (0, [0, -1], AmphipodState::Initial),
-        (0, [1, 0], AmphipodState::Initial),
-        (0, [1, 0], AmphipodState::Initial),
-        (0, [0, 1], AmphipodState::Done),
-        (3, [0, -1], AmphipodState::Initial),
-        (3, [-1, 0], AmphipodState::Initial),
-        (7, [0, -1], AmphipodState::Initial),
-        (7, [0, -1], AmphipodState::Initial),
-        (7, [1, 0], AmphipodState::Initial),
-        (3, [1, 0], AmphipodState::Stopped),
-        (3, [0, 1], AmphipodState::Stopped),
-        (3, [0, 1], AmphipodState::Done),
-        (5, [1, 0], AmphipodState::Stopped),
-        (5, [1, 0], AmphipodState::Stopped),
-        (5, [1, 0], AmphipodState::Stopped),
-        (5, [0, 1], AmphipodState::Done),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [-1, 0], AmphipodState::Stopped),
-        (7, [0, 1], AmphipodState::Done),
-    ];
-    for (i, step, s) in scenario {
-        let kind = state.amphipods[i].kind;
-        let position = state.amphipods[i].position;
-        assert!(
-            can_move_amphipod(kind, position, step, &env, &state),
-            "{} {:?}",
-            i,
-            step
-        );
-        move_amphipod(i, add_vec2(position, step), &env, &mut state);
-        assert_eq!(state.amphipods[i].state, s, "{} {:?}", i, step);
-    }
-    assert!(is_final(&state));
-}
-
-#[test]
-fn example_scenario_2_test() {
-    let buffer = r#"#############
-#...........#
-###B#C#B#D###
   #D#C#B#A#
   #D#B#A#C#
   #A#D#C#A#
@@ -586,25 +477,25 @@ fn example_scenario_2_test() {
     let World { env, mut state } = parse_world(buffer);
     for i in 0..state.amphipods.len() {
         if is_amphipod_in_final_state(&state.amphipods[i], &env, &state) {
-            state.amphipods[i].state = AmphipodState::Done;
+            state.amphipods[i].done = true;
         }
     }
     let scenario = [
-        ([9, 2], [11, 1], 3, AmphipodState::Initial),
-        ([9, 3], [1, 1], 10, AmphipodState::Initial),
-        ([7, 2], [10, 1], 4, AmphipodState::Initial),
-        ([7, 3], [8, 1], 3, AmphipodState::Initial),
-        ([7, 4], [2, 1], 8, AmphipodState::Initial),
-        ([5, 2], [7, 4], 6, AmphipodState::Done),
-        ([5, 3], [7, 3], 6, AmphipodState::Done),
-        ([5, 4], [6, 1], 4, AmphipodState::Initial),
-        ([5, 5], [4, 1], 5, AmphipodState::Initial),
-        ([6, 1], [5, 5], 5, AmphipodState::Done),
-        ([8, 1], [5, 4], 6, AmphipodState::Done),
-        ([10, 1], [5, 3], 7, AmphipodState::Done),
-        ([9, 4], [7, 2], 6, AmphipodState::Done),
-        ([9, 5], [10, 1], 5, AmphipodState::Initial),
-        ([4, 1], [9, 5], 9, AmphipodState::Done),
+        ([9, 2], [11, 1], 3, false),
+        ([9, 3], [1, 1], 10, false),
+        ([7, 2], [10, 1], 4, false),
+        ([7, 3], [8, 1], 3, false),
+        ([7, 4], [2, 1], 8, false),
+        ([5, 2], [7, 4], 6, true),
+        ([5, 3], [7, 3], 6, true),
+        ([5, 4], [6, 1], 4, false),
+        ([5, 5], [4, 1], 5, false),
+        ([6, 1], [5, 5], 5, true),
+        ([8, 1], [5, 4], 6, true),
+        ([10, 1], [5, 3], 7, true),
+        ([9, 4], [7, 2], 6, true),
+        ([9, 5], [10, 1], 5, false),
+        ([4, 1], [9, 5], 9, true),
     ];
     for (src, dst, length, s) in scenario {
         let i = state
@@ -626,7 +517,7 @@ fn example_scenario_2_test() {
         );
         move_amphipod(i, dst, &env, &mut state);
         assert_eq!(
-            state.amphipods[i].state, s,
+            state.amphipods[i].done, s,
             "{:?} {:?} {} {:?}",
             src, dst, length, s
         );
@@ -816,7 +707,7 @@ fn find_min_energy_part_2_example_test() {
 "#
     .as_bytes();
     let World { env, state } = parse_world(buffer);
-    assert_eq!(find_min_energy(&env, state), 40727);
+    assert_eq!(find_min_energy(&env, state), 44169);
 }
 
 #[test]
@@ -828,5 +719,5 @@ fn example_test() {
   #########
 "#
     .as_bytes();
-    assert_eq!(relocate_amphipods(buffer), (12521, 40727));
+    assert_eq!(relocate_amphipods(buffer), (12521, 44169));
 }
