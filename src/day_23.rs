@@ -141,48 +141,54 @@ fn try_move_amphipod(amphipod_index: usize, state_index: usize, g_score: u32, ct
     let kind = ctx.states[state_index].amphipods[amphipod_index].kind;
     let src = ctx.states[state_index].amphipods[amphipod_index].position;
     let room_x = ctx.env.rooms[kind as usize].x;
-    for room_y in (2..ctx.env.rooms[kind as usize].depth + 2).rev() {
-        let dst = [room_x, room_y];
-        if ctx.states[state_index]
-            .amphipods
-            .iter()
-            .all(|v| v.position != dst)
-        {
-            if let Some(length) =
-                find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
+    let tile = ctx.env.map.tile(ctx.states[state_index].amphipods[amphipod_index].position);
+    if tile != Tile::Room(kind as u8) {
+        for room_y in (2..ctx.env.rooms[kind as usize].depth + 2).rev() {
+            let dst = [room_x, room_y];
+            if ctx.states[state_index]
+                .amphipods
+                .iter()
+                .all(|v| v.position != dst)
             {
-                try_apply_transition(
-                    amphipod_index,
-                    dst,
-                    state_index,
-                    g_score,
-                    length as u32,
-                    ctx,
-                );
+                if let Some(length) =
+                find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
+                {
+                    try_apply_transition(
+                        amphipod_index,
+                        dst,
+                        state_index,
+                        g_score,
+                        length as u32,
+                        ctx,
+                    );
+                    break;
+                }
             }
         }
     }
-    for hallway_x in 0..ctx.env.map.width as i8 {
-        let dst = [hallway_x, 1];
-        if ctx.env.map.tile(dst) != Tile::Hallway {
-            continue;
-        }
-        if ctx.states[state_index]
-            .amphipods
-            .iter()
-            .all(|v| v.position != dst)
-        {
-            if let Some(length) =
-                find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
+    if tile != Tile::Hallway {
+        for hallway_x in 0..ctx.env.map.width as i8 {
+            let dst = [hallway_x, 1];
+            if ctx.env.map.tile(dst) != Tile::Hallway {
+                continue;
+            }
+            if ctx.states[state_index]
+                .amphipods
+                .iter()
+                .all(|v| v.position != dst)
             {
-                try_apply_transition(
-                    amphipod_index,
-                    dst,
-                    state_index,
-                    g_score,
-                    length as u32,
-                    ctx,
-                );
+                if let Some(length) =
+                find_shortest_path(kind, src, dst, &ctx.states[state_index], ctx.env)
+                {
+                    try_apply_transition(
+                        amphipod_index,
+                        dst,
+                        state_index,
+                        g_score,
+                        length as u32,
+                        ctx,
+                    );
+                }
             }
         }
     }
